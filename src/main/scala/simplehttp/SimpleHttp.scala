@@ -7,23 +7,14 @@ import akka.io.IO.Extension
 import akka.io.Tcp
 
 /**
-  * Simple HTTP protocol extension for akka.io
+  * Simple HTTP extension for akka.io
   *
-  * @note Implementation based on spray-can module from Spray library:
-  *       http://spray.io
+  * @note Implementation based on spray-can module from http://spray.io library
   */
 object SimpleHttp extends ExtensionKey[SimpleHttpExt] {
 
-  // bind command
-  case class Bind(userLevelListener: ActorRef, endpoint: InetSocketAddress)
-  // bind companion object for InetSocketAddres construction from ip & port
-  object Bind {
-    def apply(listener: ActorRef, interface: String, port: Int = 80): Bind = {
-      apply(listener, new InetSocketAddress(interface, port))
-    }
-  }
-
   type Command = Tcp.Command
+  type Event = Tcp.Event
 
   type Bound = Tcp.Bound
   val Bound = Tcp.Bound
@@ -31,7 +22,19 @@ object SimpleHttp extends ExtensionKey[SimpleHttpExt] {
   type Connected = Tcp.Connected
   val Connected = Tcp.Connected
 
+  case class Bind(listener: ActorRef, endpoint: InetSocketAddress) extends Command
+
+  object Bind {
+    def apply(listener: ActorRef, interface: String, port: Int = 80): Bind = {
+      apply(listener, new InetSocketAddress(interface, port))
+    }
+  }
+
   case class Register(handler: ActorRef) extends Command
+
+  case class Response(response: String) extends Command
+
+  case class Request(request: String) extends Event
 
 }
 
@@ -39,5 +42,5 @@ class SimpleHttpExt(system: ExtendedActorSystem) extends Extension {
 
   override def manager: ActorRef = system.actorOf(
     props = Props[SimpleHttpManager],
-    name = "IO-SIMPLEHTTP")
+    name = "io-simplehttp")
 }

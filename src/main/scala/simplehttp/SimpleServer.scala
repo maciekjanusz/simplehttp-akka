@@ -1,43 +1,61 @@
 package simplehttp
 
+import java.net.InetSocketAddress
+
 import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
 import akka.io.IO
+import akka.util.ByteString
 
-/**
-  * Created by maciek-private on 28.11.2015.
-  */
-object SimpleServer extends App {
+object SimpleServer {
 
   implicit val system = ActorSystem()
-  val handler = system.actorOf(Props[Handler], name = "user-level-handler")
-  val interface = "192.168.1.184" //"localhost"
-  val port = 8888
-  println("Binding to SimpleHttp on " + interface + ":" + port)
-  IO(SimpleHttp) ! SimpleHttp.Bind(listener = handler, interface = interface, port = port)
+
+  val defaultSocketAddress = new InetSocketAddress("localhost", 8080)
+
+  def main(args: Array[String]) {
+    try {
+      start(new InetSocketAddress(args(0), args(1).toInt))
+    } catch {
+      case e: Exception =>
+        println("Invalid arguments, using " + defaultSocketAddress.toString)
+        start(defaultSocketAddress)
+    }
+  }
+
+  def start(inetSocketAddress: InetSocketAddress): Unit = {
+    val handler = system.actorOf(Props[UserLevelHandler], name = "user-level-handler")
+    IO(SimpleHttp) ! SimpleHttp.Bind(listener = handler, inetSocketAddress)
+  }
 }
 
-class Handler extends Actor with ActorLogging {
+class UserLevelHandler extends Actor with ActorLogging {
 
   val responseHandlerCounter = Iterator from 0
 
   override def receive: Receive = {
     case msg: SimpleHttp.Connected =>
-      log.info("Received SimpleHttp.Connected. Sending back SimpleHttp.Register")
-
-      val responseHandler = context.actorOf(Props[HttpResponseHandler],
-        name = "response-handler-" + responseHandlerCounter.next())
+      val responseHandler = context.actorOf(Props[HttpRequestHandler])
+      //        name = "request-handler-" + responseHandlerCounter.next())
       sender() ! SimpleHttp.Register(responseHandler)
+
+    case msg: SimpleHttp.Bound =>
+      log.info("Bound to " + msg.localAddress)
   }
-
-
 }
 
-class HttpResponseHandler extends Actor with ActorLogging {
+class HttpRequestHandler extends Actor with ActorLogging {
 
-  override def receive = registered
-  def registered: Receive = {
-    case msg: String =>
-      log.info(msg)
+  def httpHeader(contentLength: Int) = "HTTP/1.1 200 OK\nServer: SimpleServer/0.1\nContent-Length: " +
+    contentLength + "\nConnection: close\nContent-Type: text/plain\n\n"
+
+  val document = "Hello!\n"
+
+  override def receive: Receive = {
+    case SimpleHttp.Request(requestString) =>
+      val response = httpHeader(ByteString.fromString(document).size) + document
+      sender ! SimpleHttp.Response(response)
+      log.info("\n" + requestString)
+//      log.info("\n" + response)
+      context.stop(self)
   }
-
 }
