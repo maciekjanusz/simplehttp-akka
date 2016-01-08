@@ -12,7 +12,9 @@ import akka.io.Tcp
   * @note Implementation based on spray-can module from http://spray.io library
   */
 object SimpleHttp extends ExtensionKey[SimpleHttpExt] {
-
+  /*
+    Command and event messages for the system
+   */
   type Command = Tcp.Command
   type Event = Tcp.Event
 
@@ -40,6 +42,7 @@ object SimpleHttp extends ExtensionKey[SimpleHttpExt] {
 
 class SimpleHttpExt(system: ExtendedActorSystem) extends Extension {
 
+  // a method returning the manager actor for this extension
   override def manager: ActorRef = system.actorOf(
     props = Props[SimpleHttpManager],
     name = "io-simplehttp")

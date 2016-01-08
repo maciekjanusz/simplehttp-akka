@@ -13,27 +13,32 @@ class SimpleHttpConnectionHandler(tcpManager: ActorRef,
                                   remoteAddress: InetSocketAddress,
                                   localAddress: InetSocketAddress)
   extends Actor with ActorLogging {
-
+  // report established connection
   userLevelListener ! SimpleHttp.Connected(remoteAddress, localAddress)
 
   override def receive = awaitingRegister
 
   def awaitingRegister: Receive = {
     case SimpleHttp.Register(handler) =>
+      // register for this tcp connection
       tcpManager ! Tcp.Register(handler = self)
+      // await received data
       context.become(receiving(handler))
   }
 
   def receiving(userLevelHandler: ActorRef): Receive = {
     case Tcp.Received(data) =>
+      // receive an http message
       val httpMsg = data.decodeString("UTF-8")
+      // send the message to user-level handler and await response
       userLevelHandler ! Request(httpMsg)
       context.become(awaitingResponse(sender))
   }
 
   def awaitingResponse(tcpReceiver: ActorRef): Receive = {
     case SimpleHttp.Response(responseString) =>
+      // send the response through tcp and back to receiving
       tcpReceiver ! Write(ByteString(responseString))
-      context.stop(self)
+      context.unbecome()
   }
 }

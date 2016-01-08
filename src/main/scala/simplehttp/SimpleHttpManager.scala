@@ -9,9 +9,9 @@ class SimpleHttpManager extends Actor with ActorLogging {
   override def receive: Receive = {
     case bind: SimpleHttp.Bind =>
       log.info("Binding to SimpleHttp on " + bind.endpoint.toString)
-
       val commander = sender
       context.watch {
+        // create a listener for http connections
         context.actorOf(Props(classOf[SimpleHttpListener], commander, bind),
           name = "listener-" + listenerCounter.next())
       }
